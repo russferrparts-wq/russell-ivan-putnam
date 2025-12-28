@@ -1,56 +1,159 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Russell Ivan Putnam — Historical Lineage Archive</title>
-<meta name="description" content="Russell Ivan Putnam — Historical Lineage Archive documenting dual historical lineages connected to early Los Angeles and California history.">
-<meta name="robots" content="index,follow">
-<link rel="canonical" href="https://YOURDOMAIN_OR_GITHUBPAGES_URL/archive.html">
-<link rel="sitemap" type="application/xml" title="Sitemap" href="sitemap.xml">
-<link rel="manifest" href="site.webmanifest">
-<meta property="og:title" content="Russell Ivan Putnam — Historical Lineage Archive">
-<meta property="og:description" content="A curated documentation archive supporting dual historical lineages connected to early Los Angeles and California history.">
-<meta property="og:type" content="website">
-<meta property="og:url" content="https://YOURDOMAIN_OR_GITHUBPAGES_URL/archive.html">
-
-  <link rel="stylesheet" href="assets/css/style.css"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Archive — Russell Ivan Putnam</title>
+  <meta name="robots" content="index,follow" />
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; line-height: 1.35; }
+    nav a { margin-right: 10px; }
+    .note { color:#555; margin: 12px 0 18px; }
+    .bar { display:flex; gap:10px; flex-wrap:wrap; margin: 12px 0 16px; }
+    input, select { padding:8px; font-size:14px; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:14px; }
+    .card { border:1px solid #ddd; border-radius:10px; padding:10px; }
+    .thumb { width:100%; height:220px; object-fit:cover; border-radius:8px; background:#f3f3f3; }
+    .meta { font-size: 12px; color:#666; margin-top:8px; }
+    .title { font-size: 14px; font-weight: 700; margin: 8px 0 4px; }
+    .small { font-size: 13px; color:#333; }
+    .err { color:#b00020; font-weight:700; }
+  </style>
 </head>
 <body>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="lineage.html">Lineage</a>
+    <a href="context.html">Historical Context</a>
+    <a href="archive.html"><b>Archive</b></a>
+    <a href="continuity.html">Continuity</a>
+    <a href="contact.html">Contact</a>
+  </nav>
 
-<header>
-  <div class="nav">
-    <div class="brand"><a href="index.html">Russell Ivan Putnam — Historical Lineage Archive</a></div>
-    <nav class="links">
-      <a href="index.html">Home</a>
-      <a href="lineage.html">Lineage</a>
-      <a href="context.html">Historical Context</a>
-      <a href="archive.html">Archive</a>
-      <a href="continuity.html">Continuity</a>
-      <a href="contact.html">Contact</a>
-    </nav>
+  <h1>Archive</h1>
+  <div class="note">
+    Documents are presented as images. Use search to filter; later we can add titles, dates, and sources.
   </div>
-</header>
 
-<main>
+  <div class="bar">
+    <input id="q" type="text" placeholder="Search title / summary / filename…" size="32" />
+    <select id="cat">
+      <option value="">All categories</option>
+    </select>
+    <div id="status" class="small"></div>
+  </div>
 
-<h1>Archive</h1>
-<p class="muted">45 uploaded items are currently stored as images. Next, we’ll assign each item a title, date, source, and 1–2 sentence relevance note, then enable filtering by category (census, BIA, headstones, maps, correspondence, etc.).</p>
+  <div id="error" class="err"></div>
+  <div id="grid" class="grid"></div>
 
-<div id="archive-page"></div>
+  <script>
+    // IMPORTANT: your JSON is here (you created it inside /archive/)
+    const INDEX_URL = "archive/archive_index.json";
 
-<div class="controls">
-  <input id="q" placeholder="Search names, places, keywords…" />
-  <select id="cat">
-    <option value="">All categories</option>
-  </select>
-</div>
+    // Cache-bust so GitHub Pages updates show immediately
+    const bust = "v=" + Date.now();
 
-<div class="small" id="count"></div>
-<div class="grid" id="list" style="margin-top:12px"></div>
+    const $q = document.getElementById("q");
+    const $cat = document.getElementById("cat");
+    const $grid = document.getElementById("grid");
+    const $status = document.getElementById("status");
+    const $error = document.getElementById("error");
 
-</main>
-<div class="footer">Maintained for historical preservation, research, and educational review.</div>
-<script src="assets/js/site.js"></script>
+    let entries = [];
+
+    function textOf(e) {
+      return [
+        e.title, e.summary, e.relevance, e.date, e.type, e.category,
+        (e.people||[]).join(" "),
+        e.place, e.source, e.filename, e.id
+      ].filter(Boolean).join(" ").toLowerCase();
+    }
+
+    function uniqCats(list) {
+      const s = new Set();
+      list.forEach(e => { if (e.category) s.add(e.category); });
+      return Array.from(s).sort();
+    }
+
+    function fillCategories() {
+      const cats = uniqCats(entries);
+      // reset options (keep first)
+      while ($cat.options.length > 1) $cat.remove(1);
+      cats.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c;
+        opt.textContent = c;
+        $cat.appendChild(opt);
+      });
+    }
+
+    function cardHTML(e) {
+      // filenames in JSON already include path (yours are archive/archive/IMG_....jpg)
+      const imgUrl = e.filename + "?" + bust;
+      const title = e.title && e.title.trim() ? e.title : e.id;
+      const metaBits = [];
+      if (e.date) metaBits.push(e.date);
+      if (e.type) metaBits.push(e.type);
+      if (e.category) metaBits.push(e.category);
+      const meta = metaBits.join(" • ");
+
+      return `
+        <div class="card">
+          <a href="${imgUrl}" target="_blank" rel="noopener">
+            <img class="thumb" src="${imgUrl}" alt="${title}">
+          </a>
+          <div class="title">${escapeHtml(title)}</div>
+          ${meta ? `<div class="meta">${escapeHtml(meta)}</div>` : ``}
+          ${e.summary ? `<div class="small">${escapeHtml(e.summary)}</div>` : ``}
+        </div>
+      `;
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, m => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+      }[m]));
+    }
+
+    function render() {
+      const q = ($q.value || "").trim().toLowerCase();
+      const c = $cat.value || "";
+
+      const filtered = entries.filter(e => {
+        if (c && (e.category || "") !== c) return false;
+        if (!q) return true;
+        return textOf(e).includes(q);
+      });
+
+      $status.textContent = `${filtered.length} of ${entries.length} items`;
+      $grid.innerHTML = filtered.map(cardHTML).join("");
+    }
+
+    async function init() {
+      try {
+        $error.textContent = "";
+        $status.textContent = "Loading archive…";
+
+        const res = await fetch(INDEX_URL + "?" + bust, { cache: "no-store" });
+        if (!res.ok) throw new Error(`Could not load ${INDEX_URL} (HTTP ${res.status})`);
+
+        const data = await res.json();
+        if (!data.entries || !Array.isArray(data.entries)) throw new Error("archive_index.json missing entries[]");
+
+        entries = data.entries;
+        fillCategories();
+        render();
+
+        $q.addEventListener("input", render);
+        $cat.addEventListener("change", render);
+      } catch (err) {
+        $status.textContent = "";
+        $error.textContent = "Archive failed to load: " + err.message;
+        console.error(err);
+      }
+    }
+
+    init();
+  </script>
 </body>
 </html>
